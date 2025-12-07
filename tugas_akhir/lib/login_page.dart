@@ -22,11 +22,16 @@ class _LoginPageState extends State<LoginPage> {
     final encrypted = sha256.convert(utf8.encode(password)).toString();
 
     final box = Hive.box('userBox');
-    final user = box.get('user');
+    
+    // 🔹 PERBAIKAN: Cari data user berdasarkan key EMAIL
+    final userData = box.get(email);
 
-    if (user != null &&
-        user['email'] == email &&
-        user['password'] == encrypted) {
+    if (userData != null && userData['password'] == encrypted) {
+      
+      // 🔹 PENTING: Set user yang login ini sebagai 'current active user'
+      // Ini supaya logika di Home & Profile (yang pake box.get('user')) tetep jalan
+      box.put('user', userData);
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomePage()),
@@ -41,9 +46,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFF3F3F3,
-      ), // 🩶 agak lebih gelap dari putih
+      backgroundColor: const Color(0xFFF3F3F3),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

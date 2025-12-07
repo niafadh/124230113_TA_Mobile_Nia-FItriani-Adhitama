@@ -22,41 +22,51 @@ class _RegisterPageState extends State<RegisterPage> {
     final password = _passwordController.text.trim();
 
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("All fields are required")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("All fields are required")),
+      );
       return;
     }
 
     final box = Hive.box('userBox');
-    final existingUser = box.get('user');
 
-    if (existingUser != null) {
+    // 🔹 PERBAIKAN: Cek apakah EMAIL ini sudah ada, bukan cek 'user' global
+    if (box.containsKey(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("An account already exists")),
+        const SnackBar(content: Text("Email already registered. Please login.")),
       );
       return;
     }
 
     final encrypted = sha256.convert(utf8.encode(password)).toString();
-    box.put('user', {'name': name, 'email': email, 'password': encrypted});
+    
+    // 🔹 PERBAIKAN: Simpan data dengan key EMAIL, bukan 'user'
+    // Ini biar database bisa nampung banyak akun
+    await box.put(email, {
+      'name': name,
+      'email': email,
+      'password': encrypted
+    });
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Registration successful!")));
+    // Opsional: Langsung set sebagai user aktif (auto-login) kalau mau
+    // Tapi karena arahnya ke Login Page, kita biarkan kosong dulu
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Registration successful! Please Login.")),
+      );
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-    );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFF3F3F3,
-      ), // 🩶 agak lebih gelap dari putih polos
+      backgroundColor: const Color(0xFFF3F3F3),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -84,7 +94,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(28),
                   decoration: BoxDecoration(
-                    color: Colors.white, // ⬜ box tetap putih
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(

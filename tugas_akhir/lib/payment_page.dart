@@ -3,18 +3,20 @@ import 'models.dart';
 import 'transaction_service.dart';
 import 'notification_service.dart';
 import 'activity_page.dart';
-import 'premium_helper.dart';
+import 'premium_helper.dart'; //
 
 class PaymentPage extends StatelessWidget {
   final SubscriptionPlan plan;
   final double finalPrice;
   final String currency;
+  final String userEmail; // 🔹 Update: Butuh email user
 
   const PaymentPage({
     super.key,
     required this.plan,
     required this.finalPrice,
     required this.currency,
+    required this.userEmail, // 🔹 Wajib diisi
   });
 
   String formatCurrency(double value, String currency) {
@@ -89,6 +91,7 @@ class PaymentPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  _infoRow('Akun', userEmail), // Tampilkan email
                   _infoRow('Paket', plan.name),
                   _infoRow('Durasi', '${plan.months} bulan'),
                   _infoRow('Total', formatCurrency(finalPrice, currency),
@@ -117,7 +120,7 @@ class PaymentPage extends StatelessWidget {
                 ),
                 onPressed: () async {
                   try {
-                    // simpan transaksi
+                    // 1. Simpan transaksi (History)
                     await TransactionService.addTransaction(
                       Transaction(
                         planName: plan.name,
@@ -127,16 +130,17 @@ class PaymentPage extends StatelessWidget {
                       ),
                     );
 
-                    // aktifkan premium
-                    await PremiumHelper.activatePremium(plan.months);
+                    // 2. 🔹 Aktifkan premium SESUAI EMAIL
+                    await PremiumHelper.activatePremium(userEmail, plan.months);
 
-                    // notifikasi
+                    // 3. Notifikasi
                     await NotificationService.showSuccessNotification(
                       title: 'Pembayaran Berhasil 🎉',
-                      body: 'Langganan ${plan.name} telah aktif!',
+                      body: 'Premium ${plan.name} aktif untuk $userEmail!',
                     );
 
                     if (context.mounted) {
+                      // Balik ke activity page
                       Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(

@@ -5,11 +5,12 @@ import 'notification_service.dart';
 import 'login_page.dart';
 import 'register_page.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'premium_helper.dart'; // 🔹 Jangan lupa import ini
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // jangan biarkan kegagalan notifikasi/permission mematikan app
+  // Handle notifikasi & permission (biarkan kegagalan tidak mematikan app)
   try {
     await NotificationService.init();
   } catch (e, st) {
@@ -17,7 +18,6 @@ void main() async {
   }
 
   try {
-    // request permission hanya jika tersedia di platform
     if (Platform.isAndroid || Platform.isIOS) {
       await Permission.notification.request();
     }
@@ -25,9 +25,15 @@ void main() async {
     debugPrint('⚠️ Permission.notification.request() failed: $e\n$st');
   }
 
+  // Inisialisasi Database
   await Hive.initFlutter();
   await Hive.openBox('userBox');
   await Hive.openBox('savedNewsBox');
+  await Hive.openBox('transactions'); // 🔹 Buka box transaksi di awal
+  
+  // 🔹 Inisialisasi Helper Premium (PENTING)
+  await PremiumHelper.init();
+
   final box = Hive.box('userBox');
   final user = box.get('user');
 

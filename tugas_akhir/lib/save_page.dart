@@ -14,11 +14,23 @@ class SavePage extends StatefulWidget {
 
 class _SavePageState extends State<SavePage> {
   late Box _box;
+  String userEmail = ''; // 🔹 Variabel email
 
   @override
   void initState() {
     super.initState();
     _box = Hive.box('savedNewsBox');
+    _loadUser(); // 🔹 Ambil data user
+  }
+
+  void _loadUser() {
+    final box = Hive.box('userBox');
+    final user = box.get('user');
+    if (user != null && mounted) {
+      setState(() {
+        userEmail = user['email'] ?? '';
+      });
+    }
   }
 
   void _remove(String key) {
@@ -29,12 +41,13 @@ class _SavePageState extends State<SavePage> {
 
   @override
   Widget build(BuildContext context) {
-    final keys = _box.keys.toList().reversed.toList(); // newest first
+    final keys = _box.keys.toList().reversed.toList();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Koleksi Berita'),
         backgroundColor: const Color(0xFFC92E36),
+        foregroundColor: Colors.white,
       ),
       body: keys.isEmpty
           ? const Center(child: Text('Belum ada berita tersimpan.'))
@@ -60,9 +73,17 @@ class _SavePageState extends State<SavePage> {
                   margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   child: ListTile(
                     onTap: () {
+                      // 🔹 UPDATE: Kirim parameter ke DetailPage
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => DetailPage(article: article, isPremium: false)),
+                        MaterialPageRoute(
+                          builder: (_) => DetailPage(
+                            article: article,
+                            // Anggap berita tersimpan itu aman/sudah terbuka (atau false biar ga kekunci lagi)
+                            isArticlePremiumLabel: false, 
+                            userEmail: userEmail,
+                          ),
+                        ),
                       );
                     },
                     leading: image != null

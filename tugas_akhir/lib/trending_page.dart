@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'detail_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:hive_flutter/hive_flutter.dart'; // Tambah ini buat ambil User
 
 class TrendingPage extends StatefulWidget {
   const TrendingPage({super.key});
@@ -22,6 +23,7 @@ class _TrendingPageState extends State<TrendingPage> {
 
   bool _isLoadingMore = false;
   bool _isFetching = false;
+  String userEmail = ''; // 🔹 Variabel buat simpan email
 
   final List<Map<String, String>> categories = [
     {'key': 'general', 'label': 'General'},
@@ -36,8 +38,20 @@ class _TrendingPageState extends State<TrendingPage> {
   @override
   void initState() {
     super.initState();
+    _loadUser(); // 🔹 Ambil data user
     _fetchTrending(selectedCategory);
     _scrollController.addListener(_onScroll);
+  }
+
+  // 🔹 Fungsi ambil email user
+  void _loadUser() {
+    final box = Hive.box('userBox');
+    final user = box.get('user');
+    if (user != null && mounted) {
+      setState(() {
+        userEmail = user['email'] ?? '';
+      });
+    }
   }
 
   void _fetchTrending(String category) {
@@ -135,7 +149,6 @@ class _TrendingPageState extends State<TrendingPage> {
       ),
       body: Column(
         children: [
-          // 🔹 Category Chips
           SizedBox(
             height: 55,
             child: ListView.builder(
@@ -153,8 +166,7 @@ class _TrendingPageState extends State<TrendingPage> {
                       cat['label']!,
                       style: TextStyle(
                         color: isSelected ? Colors.white : redColor,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
                     selected: isSelected,
@@ -168,15 +180,12 @@ class _TrendingPageState extends State<TrendingPage> {
             ),
           ),
 
-          // 🔹 News List
           Expanded(
             child: FutureBuilder<List<dynamic>>(
               future: trendingNews,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: redColor),
-                  );
+                  return const Center(child: CircularProgressIndicator(color: redColor));
                 } else if (snapshot.hasError) {
                   return Center(
                     child: Padding(
@@ -212,10 +221,8 @@ class _TrendingPageState extends State<TrendingPage> {
                 if (_allArticles.isEmpty) {
                   _allArticles.addAll(capped);
                   for (var i = 0; i < _allArticles.length; i++) {
-                    final source =
-                        _allArticles[i]['source']?['name'] ?? 'Unknown';
-                    _allArticles[i]['location'] =
-                        _getLocationFromSource(source);
+                    final source = _allArticles[i]['source']?['name'] ?? 'Unknown';
+                    _allArticles[i]['location'] = _getLocationFromSource(source);
                   }
                   _displayArticles.addAll(_allArticles.take(_pageSize).toList());
                   _fillRemainingInBackground();
@@ -238,34 +245,31 @@ class _TrendingPageState extends State<TrendingPage> {
                     if (index >= _displayArticles.length) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Center(
-                          child:
-                              CircularProgressIndicator(color: redColor),
-                        ),
+                        child: Center(child: CircularProgressIndicator(color: redColor)),
                       );
                     }
 
-                    final article =
-                        Map<String, dynamic>.from(_displayArticles[index]);
+                    final article = Map<String, dynamic>.from(_displayArticles[index]);
                     final bool isPremium = index % 4 == 0;
                     final source = article['source']?['name'] ?? 'Unknown';
                     article['location'] = _getLocationFromSource(source);
 
                     return InkWell(
                       onTap: () {
+                        // 🔹 UPDATE DISINI: Mengirim parameter yang benar ke DetailPage
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => DetailPage(
                               article: article,
-                              isPremium: isPremium,
+                              isArticlePremiumLabel: isPremium, // Ganti nama param
+                              userEmail: userEmail, // Kirim email
                             ),
                           ),
                         );
                       },
                       child: Container(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -280,7 +284,6 @@ class _TrendingPageState extends State<TrendingPage> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // 🖼️ Gambar
                             ClipRRect(
                               borderRadius: const BorderRadius.only(
                                 topLeft: Radius.circular(16),
@@ -292,95 +295,58 @@ class _TrendingPageState extends State<TrendingPage> {
                                       width: 100,
                                       height: 85,
                                       fit: BoxFit.cover,
-                                      placeholder: (context, url) =>
-                                          Container(
+                                      placeholder: (context, url) => Container(
                                         width: 100,
                                         height: 85,
                                         color: Colors.grey[300],
-                                        child: const Center(
-                                          child: SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                                strokeWidth: 2),
-                                          ),
-                                        ),
+                                        child: const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))),
                                       ),
-                                      errorWidget: (context, url, error) =>
-                                          Container(
+                                      errorWidget: (context, url, error) => Container(
                                         width: 100,
                                         height: 85,
                                         color: Colors.grey[300],
-                                        child: const Icon(
-                                          Icons.broken_image,
-                                          color: Colors.grey,
-                                        ),
+                                        child: const Icon(Icons.broken_image, color: Colors.grey),
                                       ),
                                     )
                                   : Container(
                                       width: 100,
                                       height: 85,
                                       color: Colors.grey[300],
-                                      child: const Icon(
-                                        Icons.image_not_supported,
-                                        color: Colors.grey,
-                                      ),
+                                      child: const Icon(Icons.image_not_supported, color: Colors.grey),
                                     ),
                             ),
-
-                            // 📰 Info
                             Expanded(
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // 🔹 Judul + Premium
                                     Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Expanded(
                                           child: Text(
                                             article['title'] ?? 'No Title',
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.black87,
-                                            ),
+                                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
                                           ),
                                         ),
                                         if (isPremium)
                                           Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: const [
-                                              Icon(Icons.lock,
-                                                  size: 14,
-                                                  color: redColor),
+                                              Icon(Icons.lock, size: 14, color: redColor),
                                               SizedBox(width: 3),
-                                              Text(
-                                                "Premium",
-                                                style: TextStyle(
-                                                  color: redColor,
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
+                                              Text("Premium", style: TextStyle(color: redColor, fontSize: 11, fontWeight: FontWeight.w600)),
                                             ],
                                           ),
                                       ],
                                     ),
                                     const SizedBox(height: 6),
-                                    // 🔹 Sumber
                                     Text(
                                       source,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[600],
-                                      ),
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                                     ),
                                   ],
                                 ),

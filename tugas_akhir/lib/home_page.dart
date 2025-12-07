@@ -5,6 +5,7 @@ import 'profile_page.dart';
 import 'trending_page.dart';
 import 'activity_page.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'premium_helper.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -12,27 +13,36 @@ class HomePage extends StatefulWidget {
   @override
   State<HomePage> createState() => _HomePageState();
 }
- class _HomePageState extends State<HomePage> {
+
+class _HomePageState extends State<HomePage> {
   final api_service.ApiService _newsApi = api_service.ApiService();
   late Future<List<dynamic>> futureNews;
   final TextEditingController _searchController = TextEditingController();
   int _selectedIndex = 0;
   String? userName;
+  String userEmail = ''; // 🔹 Variabel untuk simpan email
 
   @override
   void initState() {
     super.initState();
     futureNews = _newsApi.fetchNews();
-    _loadUserName();
+    _loadUserData();
   }
-  void _loadUserName() {
+
+  void _loadUserData() {
     final box = Hive.box('userBox');
     final user = box.get('user');
     if (user != null && mounted) {
       setState(() {
         userName = user['name'];
+        userEmail = user['email'] ?? ''; // 🔹 Ambil email dari Hive
       });
     }
+  }
+
+  // Cek status premium live untuk UI (misal badge)
+  bool _isUserPremium() {
+    return PremiumHelper.isPremiumActive(userEmail);
   }
 
   void _searchNews() {
@@ -57,7 +67,6 @@ class HomePage extends StatefulWidget {
     });
   }
 
-  /// 🔹 Fungsi bantu untuk menentukan lokasi peta dari sumber berita
   String _getLocationFromSource(String source) {
     if (source.toLowerCase().contains('bbc')) return "London, UK";
     if (source.toLowerCase().contains('cnn')) return "Atlanta, USA";
@@ -69,19 +78,41 @@ class HomePage extends StatefulWidget {
   }
 
   Widget _buildHomeTab() {
+    bool isPremiumUser = _isUserPremium();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            "Selamat datang, ${userName ?? 'User'} 👋",
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF2B2B2B),
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Selamat datang, ${userName ?? 'User'} 👋",
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2B2B2B),
+                    ),
+                  ),
+                  // Tampilkan badge kalau premium
+                  if (isPremiumUser)
+                    const Text(
+                      "Premium Member 👑",
+                      style: TextStyle(
+                        color: Colors.amber,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -136,38 +167,7 @@ class HomePage extends StatefulWidget {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               } else if (snapshot.hasError) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.warning_amber_rounded,
-                          color: Colors.red,
-                          size: 40,
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          "Gagal memuat berita. Cek API Key/Limit.",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          "Pesan: ${snapshot.error}",
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.red,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
+                return const Center(child: Text("Gagal memuat berita."));
               } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return const Center(child: Text("Tidak ada berita ditemukan."));
               }
@@ -189,22 +189,27 @@ class HomePage extends StatefulWidget {
                 itemCount: articles.length,
                 itemBuilder: (context, index) {
                   final article = articles[index];
-                  final bool isPremium = index % 4 == 0;
+                  // Logika: Tiap artikel ke-4 adalah Premium
+                  final bool isArticlePremiumLabel = index % 4 == 0;
                   final sourceName = article['source']?['name'] ?? 'Unknown';
 
-                  // ✅ Kirim langsung article dan isPremium ke DetailPage
                   return InkWell(
-                    onTap: () {
+                    onTap: () async {
                       article['location'] = _getLocationFromSource(sourceName);
-                      Navigator.push(
+                      
+                      // 🔹 Navigasi ke DetailPage dengan membawa data email & status premium artikel
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => DetailPage(
                             article: article,
-                            isPremium: isPremium,
+                            isArticlePremiumLabel: isArticlePremiumLabel, // Status artikel
+                            userEmail: userEmail, // Kirim email user
                           ),
                         ),
                       );
+                      // Refresh halaman home pas balik (kali aja abis beli premium)
+                      setState(() {});
                     },
                     child: Card(
                       margin: const EdgeInsets.symmetric(
@@ -221,7 +226,7 @@ class HomePage extends StatefulWidget {
                         children: [
                           Container(
                             width: 100,
-                            height: 80,
+                            height: 100,
                             decoration: BoxDecoration(
                               borderRadius: const BorderRadius.only(
                                 topLeft: Radius.circular(12),
@@ -264,31 +269,36 @@ class HomePage extends StatefulWidget {
                                       color: Colors.grey,
                                     ),
                                   ),
+                                  const SizedBox(height: 6),
+                                  // Tanda Premium
+                                  if (isArticlePremiumLabel)
+                                    Row(
+                                      children: const [
+                                        Icon(
+                                          Icons.workspace_premium,
+                                          color: Colors.amber,
+                                          size: 16,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          "Premium",
+                                          style: TextStyle(
+                                            color: Colors.amber,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                 ],
                               ),
                             ),
                           ),
-                          if (isPremium)
+                          // Gembok merah kalau user BUKAN premium DAN artikelnya premium
+                          if (isArticlePremiumLabel && !isPremiumUser)
                             const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.lock,
-                                    color: Color.fromARGB(255, 195, 52, 52),
-                                    size: 16,
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    "Premium",
-                                    style: TextStyle(
-                                      color: Color.fromARGB(255, 194, 54, 54),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              padding: EdgeInsets.all(12.0),
+                              child: Icon(Icons.lock, color: Colors.red),
                             ),
                         ],
                       ),

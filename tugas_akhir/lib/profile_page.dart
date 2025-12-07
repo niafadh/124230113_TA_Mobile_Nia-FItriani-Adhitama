@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:intl/intl.dart';
 import 'feedback_page.dart';
-import 'login_page.dart'; // pastikan file login kamu ada
+import 'login_page.dart';
 import 'save_page.dart';
+import 'premium_helper.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -16,109 +19,163 @@ class _ProfilePageState extends State<ProfilePage> {
   File? _imageFile;
   final picker = ImagePicker();
 
-  // 🔹 Data profil yang bisa diubah
-  String fullName = "Nia Fitriani Adhitama";
-  String email = "niafitriani@email.com";
-  String phone = "08123456789";
-  String major = "Information Systems - UPN 'Veteran' Yogyakarta";
+  String fullName = "Loading...";
+  String email = "Loading...";
+  String phone = "-";
+  String major = "Information Systems";
+  
+  bool _isPremium = false;
+  DateTime? _expireDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  // 🔹 Load data user, status premium, DAN foto profil
+  void _loadUserData() {
+    final box = Hive.box('userBox');
+    final user = box.get('user'); // Ambil user yang sedang aktif login
+    
+    if (user != null) {
+      final userEmail = user['email'] ?? "No Email";
+      
+      setState(() {
+        fullName = user['name'] ?? "No Name";
+        email = userEmail;
+      });
+
+      // 1. Cek Status Premium
+      _checkPremiumStatus();
+
+      // 2. Load Foto Profil Khusus Email Ini
+      _loadProfileImage(userEmail);
+    }
+  }
+
+  void _checkPremiumStatus() {
+    final status = PremiumHelper.isPremiumActive(email);
+    final expire = PremiumHelper.getExpireDate(email);
+    setState(() {
+      _isPremium = status;
+      _expireDate = expire;
+    });
+  }
+
+  // 🔹 Logika Load Foto dari Hive berdasarkan Email
+  void _loadProfileImage(String userEmail) {
+    final box = Hive.box('userBox');
+    // Ambil path foto dengan key unik: 'profile_image_email@domain.com'
+    final String? imagePath = box.get('profile_image_$userEmail');
+    
+    if (imagePath != null) {
+      final file = File(imagePath);
+      if (file.existsSync()) {
+        setState(() {
+          _imageFile = file;
+        });
+      }
+    } else {
+      // Jika tidak ada data, pastikan kosong (biar gak nyangkut foto akun lain)
+      setState(() {
+        _imageFile = null;
+      });
+    }
+  }
 
   Future<void> _pickImage() async {
     final pickedFile = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 75,
     );
+
     if (pickedFile != null) {
       setState(() {
         _imageFile = File(pickedFile.path);
       });
+
+      // 🔹 Simpan path foto ke Hive agar permanen untuk akun ini
+      final box = Hive.box('userBox');
+      // Key-nya pakai email biar unik per user
+      await box.put('profile_image_$email', pickedFile.path);
     }
   }
 
   void _editProfile() {
-  final nameController = TextEditingController(text: fullName);
-  final emailController = TextEditingController(text: email);
-  final phoneController = TextEditingController(text: phone);
-  final majorController = TextEditingController(text: major);
+    final nameController = TextEditingController(text: fullName);
+    final phoneController = TextEditingController(text: phone);
+    final majorController = TextEditingController(text: major);
 
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text(
-        "Edit Profil",
-        style: TextStyle(fontWeight: FontWeight.bold),
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Edit Profil", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: "Nama Lengkap"),
+              ),
+              TextField(
+                controller: phoneController,
+                decoration: const InputDecoration(labelText: "Nomor HP"),
+              ),
+              TextField(
+                controller: majorController,
+                decoration: const InputDecoration(labelText: "Jurusan / Program Studi"),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Batal", style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                fullName = nameController.text;
+                phone = phoneController.text;
+                major = majorController.text;
+              });
+              
+              // Update nama ke Hive userBox (session aktif)
+              final box = Hive.box('userBox');
+              final currentUser = box.get('user');
+              
+              if (currentUser != null) {
+                // Update data sesi aktif
+                final updatedUser = {
+                  'name': fullName,
+                  'email': email,
+                  'password': currentUser['password']
+                };
+                box.put('user', updatedUser);
+                
+                // Update juga data di "database akun" (key = email)
+                // Supaya kalau logout & login lagi, namanya tetap yang baru
+                box.put(email, updatedUser);
+              }
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC92E36)),
+            child: const Text("Simpan", style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: "Nama Lengkap"),
-            ),
-            TextField(
-              controller: emailController,
-              decoration: const InputDecoration(labelText: "Email"),
-            ),
-            TextField(
-              controller: phoneController,
-              decoration: const InputDecoration(labelText: "Nomor HP"),
-            ),
-            TextField(
-              controller: majorController,
-              decoration: const InputDecoration(labelText: "Jurusan / Program Studi"),
-            ),
-          ],
-        ),
-      ),
-      actionsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      actions: [
-        // 🔹 Tombol Batal (Merah, teks putih)
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.white,
-            backgroundColor: const Color(0xFFB71C1C),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          child: const Text("Batal"),
-        ),
-
-        // 🔹 Tombol Simpan (Putih, teks merah)
-        ElevatedButton(
-          onPressed: () {
-            setState(() {
-              fullName = nameController.text;
-              email = emailController.text;
-              phone = phoneController.text;
-              major = majorController.text;
-            });
-            Navigator.pop(context);
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFFB71C1C),
-            elevation: 1,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: const BorderSide(color: Color(0xFFB71C1C), width: 1),
-            ),
-          ),
-          child: const Text(
-            "Simpan",
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
+    );
+  }
 
   void _logout() {
+    // Opsional: Hapus sesi aktif 'user' biar bersih
+    final box = Hive.box('userBox');
+    box.delete('user'); 
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -127,14 +184,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    const mainColor = Color(0xFFB71C1C);
+    const mainColor = Color(0xFFC92E36);
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
           "Profile",
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: mainColor,
         centerTitle: true,
@@ -142,16 +199,21 @@ class _ProfilePageState extends State<ProfilePage> {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 20),
         children: [
-          // 🔹 Header foto profil
+          // 隼 Header foto profil
           Center(
             child: Stack(
               alignment: Alignment.bottomRight,
               children: [
+                // 🔹 LOGIKA GAMBAR PROFIL BARU
                 CircleAvatar(
                   radius: 65,
-                  backgroundImage: _imageFile != null
-                      ? FileImage(_imageFile!)
-                      : const AssetImage("assets/nia.jpg") as ImageProvider,
+                  backgroundColor: Colors.grey.shade200, // Warna background kalau kosong
+                  // Jika ada file gambar -> Tampilkan FileImage
+                  // Jika TIDAK ada -> Tampilkan null (biar child Icon muncul)
+                  backgroundImage: _imageFile != null ? FileImage(_imageFile!) : null,
+                  child: _imageFile == null
+                      ? const Icon(Icons.person, size: 65, color: Colors.grey) // Placeholder default
+                      : null,
                 ),
                 GestureDetector(
                   onTap: _pickImage,
@@ -168,51 +230,75 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           const SizedBox(height: 15),
-          // 🔹 Info user
+          
+          // 隼 Info user
           Center(
             child: Column(
               children: [
-                Text(
-                  fullName,
-                  style: const TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.bold,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      fullName,
+                      style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+                    ),
+                    if (_isPremium) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.verified, color: Colors.blue, size: 20),
+                    ]
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(email, style: const TextStyle(color: Colors.black54)),
+                
+                // 🔹 STATUS PREMIUM CARD
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _isPremium ? Colors.amber.shade100 : Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _isPremium ? Colors.amber.shade700 : Colors.grey.shade400,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        _isPremium ? "Premium Member 👑" : "Free Account",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: _isPremium ? Colors.amber.shade900 : Colors.grey.shade700,
+                        ),
+                      ),
+                      if (_isPremium && _expireDate != null)
+                        Text(
+                          "Exp: ${DateFormat('dd MMM yyyy').format(_expireDate!)}",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _isPremium ? Colors.amber.shade900 : Colors.grey.shade700,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 5),
-                const SizedBox(height: 4),
-                Text(
-                  major,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.black54),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "Email: $email",
-                  style: const TextStyle(color: Colors.black54),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  "No HP: $phone",
-                  style: const TextStyle(color: Colors.black54),
-                ),
+
+                const SizedBox(height: 12),
+                Text(major, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w500)),
+                Text(phone, style: const TextStyle(color: Colors.black54)),
               ],
             ),
           ),
           const SizedBox(height: 25),
 
-          // 🔹 Menu aksi
+          // 隼 Menu aksi
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
+                BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0, 2)),
               ],
             ),
             child: Column(
@@ -262,7 +348,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // 🔸 Komponen menu
   Widget _buildMenuItem({
     required IconData icon,
     required Color color,
@@ -271,10 +356,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }) {
     return ListTile(
       leading: Icon(icon, color: color),
-      title: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.w500),
-      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
       onTap: onTap,
     );

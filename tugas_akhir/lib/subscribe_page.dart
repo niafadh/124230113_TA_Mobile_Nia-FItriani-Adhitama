@@ -3,14 +3,15 @@ import 'payment_page.dart';
 import 'models.dart' as models;
 import 'api_service.dart';
 
-class SubscriptionPlan {
+// Model lokal untuk tampilan kartu paket
+class SubscriptionPlanUI {
   final String name;
   final int months;
   final int idrPrice;
   final double discount;
   final IconData icon;
 
-  SubscriptionPlan({
+  SubscriptionPlanUI({
     required this.name,
     required this.months,
     required this.idrPrice,
@@ -20,7 +21,9 @@ class SubscriptionPlan {
 }
 
 class SubscribePage extends StatefulWidget {
-  const SubscribePage({super.key});
+  final String userEmail; // 🔹 Butuh email dari halaman sebelumnya
+
+  const SubscribePage({super.key, required this.userEmail});
 
   @override
   State<SubscribePage> createState() => _SubscribePageState();
@@ -29,22 +32,22 @@ class SubscribePage extends StatefulWidget {
 class _SubscribePageState extends State<SubscribePage> {
   final ApiService _apiService = ApiService();
   
-  final List<SubscriptionPlan> plans = [
-    SubscriptionPlan(
+  final List<SubscriptionPlanUI> plans = [
+    SubscriptionPlanUI(
       name: '1 Bulan',
       months: 1,
       idrPrice: 10000,
       discount: 0,
       icon: Icons.person,
     ),
-    SubscriptionPlan(
+    SubscriptionPlanUI(
       name: '3 Bulan',
       months: 3,
       idrPrice: 29000,
       discount: 0.1,
       icon: Icons.group,
     ),
-    SubscriptionPlan(
+    SubscriptionPlanUI(
       name: '12 Bulan',
       months: 12,
       idrPrice: 79000,
@@ -57,11 +60,7 @@ class _SubscribePageState extends State<SubscribePage> {
   String _selectedCurrency = 'IDR';
   
   final Map<String, double> _rates = {
-    'IDR': 1.0,
-    'USD': 1.0,
-    'EUR': 1.0,
-    'GBP': 1.0,
-    'JPY': 1.0,
+    'IDR': 1.0, 'USD': 1.0, 'EUR': 1.0, 'GBP': 1.0, 'JPY': 1.0,
   };
   
   bool _loadingRates = false;
@@ -74,21 +73,13 @@ class _SubscribePageState extends State<SubscribePage> {
 
   Future<void> _fetchExchangeRates() async {
     setState(() => _loadingRates = true);
-    
     try {
       final usdToIdr = await _apiService.getExchangeRate('IDR');
       final usdToEur = await _apiService.getExchangeRate('EUR');
       final usdToGbp = await _apiService.getExchangeRate('GBP');
       final usdToJpy = await _apiService.getExchangeRate('JPY');
       
-      debugPrint('🔹 Exchange Rates Debug:');
-      debugPrint('  USD → IDR: $usdToIdr');
-      debugPrint('  USD → EUR: $usdToEur');
-      debugPrint('  USD → GBP: $usdToGbp');
-      debugPrint('  USD → JPY: $usdToJpy');
-      
-      // Cek apakah API mengembalikan rate valid (bukan 1.0 default)
-      if (usdToIdr > 1.0 && usdToEur > 0 && usdToGbp > 0 && usdToJpy > 1) {
+      if (usdToIdr > 1.0) {
         setState(() {
           _rates['IDR'] = 1.0;
           _rates['USD'] = usdToIdr;
@@ -97,31 +88,23 @@ class _SubscribePageState extends State<SubscribePage> {
           _rates['JPY'] = usdToIdr / usdToJpy;
           _loadingRates = false;
         });
-        debugPrint('✅ Rates updated successfully');
       } else {
-        // Fallback ke rate hardcoded jika API gagal
-        debugPrint('⚠️ API returned invalid rates, using fallback');
-        setState(() {
-          _rates['IDR'] = 1.0;
-          _rates['USD'] = 15700.0; // fallback
-          _rates['EUR'] = 17000.0;
-          _rates['GBP'] = 19800.0;
-          _rates['JPY'] = 105.0;
-          _loadingRates = false;
-        });
+        _useFallbackRates();
       }
     } catch (e) {
-      debugPrint('❌ Error fetching exchange rates: $e');
-      // Fallback ke rate hardcoded
-      setState(() {
-        _rates['IDR'] = 1.0;
-        _rates['USD'] = 15700.0;
-        _rates['EUR'] = 17000.0;
-        _rates['GBP'] = 19800.0;
-        _rates['JPY'] = 105.0;
-        _loadingRates = false;
-      });
+      _useFallbackRates();
     }
+  }
+
+  void _useFallbackRates() {
+    setState(() {
+      _rates['IDR'] = 1.0;
+      _rates['USD'] = 15700.0;
+      _rates['EUR'] = 17000.0;
+      _rates['GBP'] = 19800.0;
+      _rates['JPY'] = 105.0;
+      _loadingRates = false;
+    });
   }
 
   String formatCurrency(double value, String currency) {
@@ -144,25 +127,17 @@ class _SubscribePageState extends State<SubscribePage> {
     }
     
     switch (currency) {
-      case 'IDR':
-        return 'Rp$formatted';
-      case 'USD':
-        return '\$$formatted';
-      case 'EUR':
-        return '€$formatted';
-      case 'GBP':
-        return '£$formatted';
-      case 'JPY':
-        return '¥$formatted';
-      default:
-        return formatted;
+      case 'IDR': return 'Rp$formatted';
+      case 'USD': return '\$$formatted';
+      case 'EUR': return '€$formatted';
+      case 'GBP': return '£$formatted';
+      case 'JPY': return '¥$formatted';
+      default: return '$currency $formatted';
     }
   }
 
   double convertPrice(int idrPrice) {
-    final result = idrPrice / _rates[_selectedCurrency]!;
-    debugPrint('💰 Convert IDR $idrPrice to $_selectedCurrency: $result (rate: ${_rates[_selectedCurrency]})');
-    return result;
+    return idrPrice / (_rates[_selectedCurrency] ?? 1.0);
   }
 
   @override
@@ -186,9 +161,9 @@ class _SubscribePageState extends State<SubscribePage> {
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Nikmati fitur premium dan dukungan penuh sesuai kebutuhanmu!',
-              style: TextStyle(fontSize: 14, color: Colors.black54),
+            Text(
+              'User: ${widget.userEmail}', // Tampilkan email user biar yakin
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
             ),
             const SizedBox(height: 16),
 
@@ -337,6 +312,7 @@ class _SubscribePageState extends State<SubscribePage> {
                                   ),
                                 ),
                                 onPressed: () {
+                                  // Navigasi ke Payment, bawa email user
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -344,10 +320,11 @@ class _SubscribePageState extends State<SubscribePage> {
                                         plan: models.SubscriptionPlan(
                                           name: plan.name,
                                           months: plan.months,
-                                          priceUSD: 0.0,
+                                          priceUSD: 0.0, // placeholder
                                         ),
                                         finalPrice: finalPrice,
                                         currency: _selectedCurrency,
+                                        userEmail: widget.userEmail, // 🔹 OPER EMAIL
                                       ),
                                     ),
                                   );
