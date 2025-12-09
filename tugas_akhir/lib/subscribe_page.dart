@@ -157,15 +157,11 @@ class _SubscribePageState extends State<SubscribePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Pilih Paket Langgananmu 🔥',
+              'Pilih Paket Langgananmu',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
-            Text(
-              'User: ${widget.userEmail}', // Tampilkan email user biar yakin
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
+            
 
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

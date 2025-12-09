@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'detail_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:hive_flutter/hive_flutter.dart'; // Tambah ini buat ambil User
+import 'package:hive_flutter/hive_flutter.dart';
+import 'premium_helper.dart'; // Import helper premium
 
 class TrendingPage extends StatefulWidget {
   const TrendingPage({super.key});
@@ -19,18 +20,19 @@ class _TrendingPageState extends State<TrendingPage> {
   final ScrollController _scrollController = ScrollController();
   final List<Map<String, dynamic>> _allArticles = [];
   final List<Map<String, dynamic>> _displayArticles = [];
-  static const int _pageSize = 8;
+  static const int _pageSize = 10;
 
   bool _isLoadingMore = false;
   bool _isFetching = false;
-  String userEmail = ''; // 🔹 Variabel buat simpan email
+  String userEmail = '';
 
-  final List<Map<String, String>> categories = [
-    {'key': 'general', 'label': 'General'},
-    {'key': 'technology', 'label': 'Technology'},
+  // Kategori Chips
+  final List<Map<String, dynamic>> categories = [
+    {'key': 'general', 'label': 'All'},
+    {'key': 'technology', 'label': 'Tech'},
     {'key': 'business', 'label': 'Business'},
-    {'key': 'health', 'label': 'Health'},
     {'key': 'entertainment', 'label': 'Entertainment'},
+    {'key': 'health', 'label': 'Health'},
     {'key': 'science', 'label': 'Science'},
     {'key': 'sports', 'label': 'Sports'},
   ];
@@ -38,12 +40,11 @@ class _TrendingPageState extends State<TrendingPage> {
   @override
   void initState() {
     super.initState();
-    _loadUser(); // 🔹 Ambil data user
+    _loadUser();
     _fetchTrending(selectedCategory);
     _scrollController.addListener(_onScroll);
   }
 
-  // 🔹 Fungsi ambil email user
   void _loadUser() {
     final box = Hive.box('userBox');
     final user = box.get('user');
@@ -52,6 +53,25 @@ class _TrendingPageState extends State<TrendingPage> {
         userEmail = user['email'] ?? '';
       });
     }
+  }
+
+  // 🔹 LOGIKA CEK PREMIUM (Sama seperti di Home Page)
+  bool _checkIsArticlePremium(Map<String, dynamic> article) {
+    final String sourceName = (article['source']?['name'] ?? '').toString().toLowerCase();
+    final List<String> premiumSources = [
+      'bloomberg', 'wall street journal', 'the washington post', 
+      'wired', 'techcrunch', 'financial times', 'the economist', 'bbc news'
+    ];
+    if (premiumSources.any((s) => sourceName.contains(s))) return true;
+
+    final String title = (article['title'] ?? '').toString().toLowerCase();
+    final List<String> exclusiveKeywords = [
+      'exclusive', 'analysis', 'interview', 'review', 'deep dive', 'premium'
+    ];
+    for (var keyword in exclusiveKeywords) {
+      if (title.contains(keyword)) return true;
+    }
+    return false;
   }
 
   void _fetchTrending(String category) {
@@ -69,7 +89,7 @@ class _TrendingPageState extends State<TrendingPage> {
   }
 
   void _onCategorySelected(String category) {
-    if (_isFetching) return;
+    if (_isFetching || selectedCategory == category) return;
     setState(() {
       selectedCategory = category;
     });
@@ -78,7 +98,7 @@ class _TrendingPageState extends State<TrendingPage> {
 
   void _onScroll() {
     if (_scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent - 150 &&
+            _scrollController.position.maxScrollExtent - 200 &&
         !_isLoadingMore) {
       _loadMore();
     }
@@ -99,7 +119,7 @@ class _TrendingPageState extends State<TrendingPage> {
   }
 
   void _fillRemainingInBackground() async {
-    await Future.delayed(const Duration(milliseconds: 250));
+    await Future.delayed(const Duration(milliseconds: 300));
     int current = _displayArticles.length;
     while (current < _allArticles.length) {
       if (!mounted) return;
@@ -112,17 +132,13 @@ class _TrendingPageState extends State<TrendingPage> {
         _displayArticles.addAll(nextChunk);
       });
       current = _displayArticles.length;
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 500));
     }
   }
 
   String _getLocationFromSource(String source) {
     if (source.toLowerCase().contains('bbc')) return "London, UK";
     if (source.toLowerCase().contains('cnn')) return "Atlanta, USA";
-    if (source.toLowerCase().contains('kompas')) return "Jakarta, Indonesia";
-    if (source.toLowerCase().contains('nhk')) return "Tokyo, Japan";
-    if (source.toLowerCase().contains('kbs')) return "Seoul, South Korea";
-    if (source.toLowerCase().contains('al jazeera')) return "Doha, Qatar";
     return "Jakarta, Indonesia";
   }
 
@@ -135,233 +151,300 @@ class _TrendingPageState extends State<TrendingPage> {
 
   @override
   Widget build(BuildContext context) {
-    const redColor = Color(0xFFB71C1C);
+    const primaryColor = Color(0xFFC92E36);
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text(
-          "Trending News 🌍",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: redColor,
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          SizedBox(
-            height: 55,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              itemCount: categories.length,
-              itemBuilder: (context, index) {
-                final cat = categories[index];
-                final bool isSelected = cat['key'] == selectedCategory;
-
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(
-                      cat['label']!,
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : redColor,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
+      backgroundColor: const Color(0xFFF9F9F9),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. Header Simple & Clean
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Trending News",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2B2B2B),
                     ),
-                    selected: isSelected,
-                    selectedColor: redColor,
-                    backgroundColor: Colors.white,
-                    side: BorderSide(color: redColor.withOpacity(0.4)),
-                    onSelected: (_) => _onCategorySelected(cat['key']!),
                   ),
-                );
-              },
+                  const SizedBox(height: 4),
+                  Text(
+                    "Most popular stories worldwide",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          Expanded(
-            child: FutureBuilder<List<dynamic>>(
-              future: trendingNews,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: redColor));
-                } else if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        "Gagal memuat berita trending:\n${snapshot.error}",
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.grey),
+            // 2. Category Chips
+            SizedBox(
+              height: 50,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: categories.length,
+                physics: const BouncingScrollPhysics(),
+                itemBuilder: (context, index) {
+                  final cat = categories[index];
+                  final bool isSelected = cat['key'] == selectedCategory;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(cat['label']),
+                      selected: isSelected,
+                      selectedColor: primaryColor,
+                      backgroundColor: Colors.white,
+                      labelStyle: TextStyle(
+                        color: isSelected ? Colors.white : Colors.grey.shade700,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                      onSelected: (_) => _onCategorySelected(cat['key']),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(
+                          color: isSelected ? primaryColor : Colors.grey.shade300,
+                        ),
                       ),
                     ),
                   );
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      "Belum ada berita trending untuk kategori ini.",
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  );
-                }
+                },
+              ),
+            ),
 
-                final articles = snapshot.data!
-                    .where(
-                      (article) =>
-                          article['description'] != null &&
-                          article['description'].toString().trim().isNotEmpty &&
-                          article['url'] != null,
-                    )
-                    .map((e) => Map<String, dynamic>.from(e))
-                    .toList();
-
-                final capped = articles.take(12).toList();
-
-                if (_allArticles.isEmpty) {
-                  _allArticles.addAll(capped);
-                  for (var i = 0; i < _allArticles.length; i++) {
-                    final source = _allArticles[i]['source']?['name'] ?? 'Unknown';
-                    _allArticles[i]['location'] = _getLocationFromSource(source);
+            // 3. List Content
+            Expanded(
+              child: FutureBuilder<List<dynamic>>(
+                future: trendingNews,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting && _displayArticles.isEmpty) {
+                    return const Center(child: CircularProgressIndicator(color: primaryColor));
+                  } else if (snapshot.hasError) {
+                    return Center(child: Text("Gagal memuat berita", style: TextStyle(color: Colors.grey.shade500)));
                   }
-                  _displayArticles.addAll(_allArticles.take(_pageSize).toList());
-                  _fillRemainingInBackground();
-                }
 
-                if (articles.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      "Tidak ada berita tersedia.",
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  itemCount: _displayArticles.length + (_isLoadingMore ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index >= _displayArticles.length) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Center(child: CircularProgressIndicator(color: redColor)),
-                      );
+                  // Init data
+                  if (_allArticles.isEmpty && snapshot.hasData) {
+                    final articles = snapshot.data!
+                        .where((a) => a['title'] != null && a['urlToImage'] != null)
+                        .map((e) => Map<String, dynamic>.from(e))
+                        .toList();
+                    _allArticles.addAll(articles);
+                    
+                    for (var item in _allArticles) {
+                      item['location'] = _getLocationFromSource(item['source']?['name'] ?? '');
                     }
 
-                    final article = Map<String, dynamic>.from(_displayArticles[index]);
-                    final bool isPremium = index % 4 == 0;
-                    final source = article['source']?['name'] ?? 'Unknown';
-                    article['location'] = _getLocationFromSource(source);
+                    _displayArticles.addAll(articles.take(_pageSize));
+                    _fillRemainingInBackground();
+                  }
 
-                    return InkWell(
-                      onTap: () {
-                        // 🔹 UPDATE DISINI: Mengirim parameter yang benar ke DetailPage
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => DetailPage(
-                              article: article,
-                              isArticlePremiumLabel: isPremium, // Ganti nama param
-                              userEmail: userEmail, // Kirim email
+                  if (_displayArticles.isEmpty) {
+                    return const Center(child: Text("Tidak ada berita."));
+                  }
+
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.only(top: 10, bottom: 20),
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: _displayArticles.length + (_isLoadingMore ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index >= _displayArticles.length) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: SizedBox(
+                              width: 20, height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor),
                             ),
                           ),
                         );
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ClipRRect(
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(16),
-                                bottomLeft: Radius.circular(16),
-                              ),
-                              child: article['urlToImage'] != null
-                                  ? CachedNetworkImage(
-                                      imageUrl: article['urlToImage'],
-                                      width: 100,
-                                      height: 85,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) => Container(
-                                        width: 100,
-                                        height: 85,
-                                        color: Colors.grey[300],
-                                        child: const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))),
-                                      ),
-                                      errorWidget: (context, url, error) => Container(
-                                        width: 100,
-                                        height: 85,
-                                        color: Colors.grey[300],
-                                        child: const Icon(Icons.broken_image, color: Colors.grey),
-                                      ),
-                                    )
-                                  : Container(
-                                      width: 100,
-                                      height: 85,
-                                      color: Colors.grey[300],
-                                      child: const Icon(Icons.image_not_supported, color: Colors.grey),
-                                    ),
-                            ),
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            article['title'] ?? 'No Title',
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
-                                          ),
-                                        ),
-                                        if (isPremium)
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: const [
-                                              Icon(Icons.lock, size: 14, color: redColor),
-                                              SizedBox(width: 3),
-                                              Text("Premium", style: TextStyle(color: redColor, fontSize: 11, fontWeight: FontWeight.w600)),
-                                            ],
-                                          ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      source,
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
+                      }
+
+                      final article = _displayArticles[index];
+                      // 🔹 Cek Premium pakai logika yang sama dengan Home
+                      final bool isPremium = _checkIsArticlePremium(article);
+                      // 🔹 Cek User Access (perlu PremiumHelper)
+                      final bool isUserPremium = PremiumHelper.isPremiumActive(userEmail);
+                      final bool isLocked = isPremium && !isUserPremium;
+
+                      return _buildModernCard(article, isPremium, isLocked);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 🔹 WIDGET KARTU BERITA MODERN
+  Widget _buildModernCard(Map<String, dynamic> article, bool isPremium, bool isLocked) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DetailPage(
+              article: article,
+              isArticlePremiumLabel: isPremium, // Kirim status premium
+              userEmail: userEmail,
             ),
           ),
-        ],
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.08),
+              spreadRadius: 2,
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. Gambar (Kiri)
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                  ),
+                  child: CachedNetworkImage(
+                    imageUrl: article['urlToImage'] ?? '',
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(color: Colors.grey.shade100),
+                    errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.grey),
+                  ),
+                ),
+                // Gembok kalau dikunci
+                if (isLocked)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.7),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          bottomLeft: Radius.circular(16),
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.lock, color: Colors.red, size: 24),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            // 2. Konten Teks (Kanan)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Label Kategori/Source
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFC92E36).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            article['source']?['name'] ?? 'News',
+                            style: const TextStyle(
+                              color: Color(0xFFC92E36),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                          ),
+                        ),
+                        // Badge Exclusive
+                        if (isPremium)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              children: const [
+                                Icon(Icons.workspace_premium, size: 10, color: Colors.amber),
+                                SizedBox(width: 2),
+                                Text(
+                                  "Exclusive",
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.deepOrange,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Judul
+                    Text(
+                      article['title'] ?? 'No Title',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        height: 1.3,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Lokasi / Tanggal
+                    Row(
+                      children: [
+                        Icon(Icons.location_on, size: 12, color: Colors.grey.shade400),
+                        const SizedBox(width: 2),
+                        Expanded(
+                          child: Text(
+                            article['location'] ?? 'Global',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

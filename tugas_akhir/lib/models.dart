@@ -11,12 +11,14 @@ class SubscriptionPlan {
 }
 
 class Transaction {
+  final String userEmail; // 👈 Pastikan ini ada
   final String planName;
   final double price;
   final String currency;
   final DateTime date;
 
   Transaction({
+    required this.userEmail, // 👈 Ini juga wajib
     required this.planName,
     required this.price,
     required this.currency,

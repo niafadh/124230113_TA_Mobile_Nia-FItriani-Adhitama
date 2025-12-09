@@ -2,21 +2,21 @@ import 'package:flutter/material.dart';
 import 'models.dart';
 import 'transaction_service.dart';
 import 'notification_service.dart';
-import 'activity_page.dart';
-import 'premium_helper.dart'; //
+import 'home_page.dart'; // Pastikan import ini ada
+import 'premium_helper.dart';
 
 class PaymentPage extends StatelessWidget {
   final SubscriptionPlan plan;
   final double finalPrice;
   final String currency;
-  final String userEmail; // 🔹 Update: Butuh email user
+  final String userEmail; 
 
   const PaymentPage({
     super.key,
     required this.plan,
     required this.finalPrice,
     required this.currency,
-    required this.userEmail, // 🔹 Wajib diisi
+    required this.userEmail, 
   });
 
   String formatCurrency(double value, String currency) {
@@ -39,18 +39,12 @@ class PaymentPage extends StatelessWidget {
     }
 
     switch (currency) {
-      case 'IDR':
-        return 'Rp$formatted';
-      case 'USD':
-        return '\$$formatted';
-      case 'EUR':
-        return '€$formatted';
-      case 'GBP':
-        return '£$formatted';
-      case 'JPY':
-        return '¥$formatted';
-      default:
-        return '$currency $formatted';
+      case 'IDR': return 'Rp$formatted';
+      case 'USD': return '\$$formatted';
+      case 'EUR': return '€$formatted';
+      case 'GBP': return '£$formatted';
+      case 'JPY': return '¥$formatted';
+      default: return '$currency $formatted';
     }
   }
 
@@ -70,7 +64,6 @@ class PaymentPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Kotak Ringkasan
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(18),
@@ -91,7 +84,7 @@ class PaymentPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _infoRow('Akun', userEmail), // Tampilkan email
+                  _infoRow('Akun', userEmail),
                   _infoRow('Paket', plan.name),
                   _infoRow('Durasi', '${plan.months} bulan'),
                   _infoRow('Total', formatCurrency(finalPrice, currency),
@@ -120,9 +113,10 @@ class PaymentPage extends StatelessWidget {
                 ),
                 onPressed: () async {
                   try {
-                    // 1. Simpan transaksi (History)
+                    // 1. Simpan Transaksi
                     await TransactionService.addTransaction(
                       Transaction(
+                        userEmail: userEmail, 
                         planName: plan.name,
                         price: finalPrice,
                         currency: currency,
@@ -130,7 +124,7 @@ class PaymentPage extends StatelessWidget {
                       ),
                     );
 
-                    // 2. 🔹 Aktifkan premium SESUAI EMAIL
+                    // 2. Aktifkan Premium
                     await PremiumHelper.activatePremium(userEmail, plan.months);
 
                     // 3. Notifikasi
@@ -140,11 +134,12 @@ class PaymentPage extends StatelessWidget {
                     );
 
                     if (context.mounted) {
-                      // Balik ke activity page
+                      // 🔹 PERBAIKAN DISINI:
+                      // Arahkan ke HomePage dengan index 3 (Profile)
                       Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => const ActivityPage()),
+                            builder: (_) => const HomePage(initialIndex: 3)), // 👈 Ke Tab Profile
                         (route) => false,
                       );
                     }
