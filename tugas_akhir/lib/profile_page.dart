@@ -187,7 +187,7 @@ class _ProfilePageState extends State<ProfilePage> {
     const mainColor = Color(0xFFC92E36);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color.fromARGB(255, 255, 56, 56),
       appBar: AppBar(
         title: const Text(
           "Profile",
@@ -256,10 +256,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   margin: const EdgeInsets.only(top: 12),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: _isPremium ? Colors.amber.shade100 : Colors.grey.shade200,
+                    color: _isPremium ? const Color.fromARGB(255, 65, 80, 215) : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: _isPremium ? Colors.amber.shade700 : Colors.grey.shade400,
+                      color: _isPremium ? const Color.fromARGB(255, 62, 16, 214) : Colors.grey.shade400,
                     ),
                   ),
                   child: Column(
@@ -295,7 +295,7 @@ class _ProfilePageState extends State<ProfilePage> {
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: const Color.fromARGB(255, 94, 42, 42),
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0, 2)),
@@ -305,14 +305,14 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 _buildMenuItem(
                   icon: Icons.edit,
-                  color: mainColor,
+                  color: const Color.fromARGB(255, 255, 255, 255),
                   title: "Edit Profil",
                   onTap: _editProfile,
                 ),
                 const Divider(height: 1),
                 _buildMenuItem(
                   icon: Icons.message,
-                  color: const Color.fromRGBO(183, 28, 28, 1),
+                  color: const Color.fromARGB(255, 255, 250, 250),
                   title: "Kesan & Pesan Mata Kuliah",
                   onTap: () {
                     Navigator.push(
@@ -324,7 +324,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 const Divider(height: 1),
                 _buildMenuItem(
                   icon: Icons.bookmark,
-                  color: Colors.red,
+                  color: const Color.fromARGB(255, 255, 255, 255),
                   title: "Koleksi Berita Tersimpan",
                   onTap: () {
                     Navigator.push(
@@ -336,7 +336,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 const Divider(height: 1),
                 _buildMenuItem(
                   icon: Icons.logout,
-                  color: Colors.red,
+                  color: const Color.fromARGB(255, 255, 255, 255),
                   title: "Logout",
                   onTap: _logout,
                 ),
